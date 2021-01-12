@@ -9,5 +9,4 @@
 
 ## HW3
 [Here](files/hw3he.html) is my third homework.
-
 [Here](files/hw3he.rmd) is my rmd file.
