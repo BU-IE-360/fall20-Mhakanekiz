@@ -1,0 +1,322 @@
+---
+title: "HW4"
+author: "Hakan Ekiz - IE360 - Fall2020"
+date: "28 Ocak 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+In this study, we will work on the dataset obtained from EPİAŞ. Electricity consumption is not static like many things. However, in order to produce linear models, we will try to stabilize the data as much as we can and estimate daily consumption. Stationary data should have mean and variance that do not change over time.
+
+These kinds of problems are important for planning. For processes such as determining and transporting the amount of electricity to be produced and purchased, it is critical to make estimation models by stabilizing the non-stationary data.
+
+## Data
+
+```{r, include=FALSE}
+library(data.table)
+library(ggplot2)
+library(lubridate)
+library(forecast)
+library(dplyr)
+library(urca)
+require(mgcv)
+require(gratia)
+```
+
+
+```{r, include=TRUE, echo=FALSE}
+
+
+elec = read.csv("C:/Users/Z0047JBE/Desktop/dersler/IE360/hw4/GercekZamanliTuketim-01012017-08012021.csv")
+head(elec,10)
+
+
+```
+
+Data is taken from EPİAŞ platform. Before working on the data, some operations have been applied to bring it into the format we want. Afterwards, the hourly data set was converted into a daily data set:
+
+```{r, include=TRUE, echo=FALSE}
+
+colnames(elec) = c("Date", "Hour", "Consumption")
+elec = as.data.table(elec[1:35256, 1:3])
+elec[,Date:=as.Date(Date,'%d.%m.%Y')]
+elec[,Consumption:=gsub(".","",Consumption, fixed=TRUE)]
+elec[,Consumption:=as.double(gsub(",",".",Consumption, fixed=TRUE))]
+daily_elec=elec[,list(mean_consumption=mean(Consumption,na.rm=T)),by=list(Date)]
+
+head(daily_elec,10)
+
+
+```
+
+Before starting everything, it is useful to look at the change of data depending on time:
+
+```{r, include=TRUE, echo=FALSE}
+ggplot(daily_elec, aes(x=Date, y=mean_consumption)) +
+        geom_line(color="blue") +
+        labs(title = "Daily Consumed Electricity (mWh) in Turkey over 2017-2021", 
+             x = "Date",
+             y = "Daily Consumed Electricity (mWh)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+As can be seen from the graph, electricity usage fluctuates depending on time. Similar oscillations over similar periods show us seasonality.
+
+
+It can be useful to use lags over certain time periods to stabilize data. So we can look at autocorrelation graphs.:
+
+
+```{r, include=TRUE, echo=FALSE}
+
+plot(acf(daily_elec$mean_consumption, lag.max = 30, plot=FALSE), main = "Autocorrelation of Daily Mean Electricity Consumption", 
+     col="red", lwd=2, xlab="Lag in Days") 
+
+```
+
+```{r, include=TRUE, echo=FALSE}
+
+plot(pacf(daily_elec$mean_consumption, lag.max = 30, plot=FALSE), main = "Partial Autocorrelation of Daily Mean Electricity Consumption", 
+     col="orange", lwd=2, xlab="Lag in Days") 
+```
+
+By looking at these graphs, we can observe that the autocorrelation values are high in the 1st and 7th lags. This shows us that we can use the consumption values of the days before and the previous week to estimate the values of the new day. That's why we write the values one week ago and one day ago in the columns.
+
+Then, we observe the effects with a simple model and establish the basic model. (non-stationary)
+
+```{r, include=TRUE, echo=FALSE}
+
+daily_elec[,prevday:=shift(x=daily_elec$mean_consumption,n=1L,fill=25000)]
+daily_elec[,prevweek:=shift(x=daily_elec$mean_consumption,n=7L,fill=25000)]
+
+model = lm(mean_consumption~prevday+prevweek,daily_elec)
+summary(model)
+checkresiduals(model)
+
+
+```
+
+```{r, include=FALSE}
+daily_elec[,residuals:=model$residuals]
+```
+
+ Unit Root KPSS test can be executed on the series to check if the assumption of stationarity is violated, in other words can be rejected,
+
+```{r, include=TRUE, echo=FALSE}
+
+plot(daily_elec$residuals)
+require(urca)
+unt_test=ur.kpss(daily_elec$residuals) 
+summary(unt_test) 
+```
+
+Although a certain line can be seen on the graph, outliers are observed, it is useful to look at the extreme values to reduce them.
+
+## Outliers
+
+To look for outliers in Turkey will be useful to look at the holidays. When we look at these days, deviations from the expected values are more than other days.
+
+```{r, include=FALSE, }
+daily_elec[,special:=0]
+daily_elec[(((month(Date)==1&day(Date)==1)| (month(Date)==4 & day(Date)==23)|(month(Date)==5 & day(Date)==19)|(month(Date)==7 & day(Date)==15)|
+                    (month(Date)==8 & day(Date)==30)|(month(Date)==10 & day(Date)==29))), special:=1]
+
+
+
+daily_elec[(((month(Date)==6 & day(Date)==26)|(month(Date)==6 & day(Date)==27)|(month(Date)==8 & day(Date)==31)|
+                    (month(Date)==9 & day(Date)==1)|(month(Date)==9 & day(Date)==1))&year(Date)==2017), special:=1]
+
+daily_elec[(((month(Date)==6 & day(Date)==14)|(month(Date)==6 & day(Date)==15)|(month(Date)==8 & day(Date)==20)|
+                    (month(Date)==8 & day(Date)==21)|(month(Date)==8 & day(Date)==22)|(month(Date)==8 & day(Date)==23)|
+                    (month(Date)==8 & day(Date)==24))&year(Date)==2018), special:=1]
+
+daily_elec[(((month(Date)==6 & day(Date)==3)|(month(Date)==6 & day(Date)==4)|(month(Date)==6 & day(Date)==5)|
+                    (month(Date)==6 & day(Date)==6)|(month(Date)==6 & day(Date)==7)|(month(Date)==8 & day(Date)==12)|
+                    (month(Date)==8 & day(Date)==13)|(month(Date)==8 & day(Date)==14))&year(Date)==2019), special:=1]
+
+daily_elec[(((month(Date)==5 & day(Date)==25)|(month(Date)==5 & day(Date)==26)|(month(Date)==7 & day(Date)==30)|
+                    (month(Date)==7 & day(Date)==31)|(month(Date)==8 & day(Date)==8))&year(Date)==2020), special:=1]
+
+```
+
+```{r, include=TRUE, echo=FALSE}
+daily_elec[,new:=mean_consumption]
+daily_elec[,initialpred:=predict(model)]
+daily_elec[special==1, new:=initialpred]
+daily_elec[,prevday2:=shift(x=daily_elec$new,n=1L,fill=25000)]
+daily_elec[,prevweek2:=shift(x=daily_elec$new,n=7L,fill=25000)]
+head(daily_elec,10)
+```
+
+In order to correct these values, we defined a binary variable for special days and wrote the prediction we obtained from the first draft model we built these days.
+
+Since changing values will affect our model, we will reconstruct the model.
+
+```{r, include=TRUE, echo=FALSE}
+
+model2 = lm(new~prevday2+prevweek2,daily_elec)
+summary(model2)
+checkresiduals(model2)
+```
+
+```{r, include=FALSE}
+daily_elec[,residuals2:=model2$residuals]
+```
+
+Let's look at the autocorrelation values of residuals to look at the stationary state and the time dependent state of our model.
+```{r, include=TRUE, echo=FALSE}
+plot(acf(daily_elec$residuals2, lag.max = 30, plot=FALSE), main = "Autocorrelation of the Residuals Outliers Treated", 
+     col="red", lwd=2, xlab="Lag in Days")
+```
+
+Unit Root KPSS test can be executed on the series to check if the assumption of stationarity is violated, in other words can be rejected,
+
+```{r, include=TRUE, echo=FALSE}
+plot(daily_elec$residuals2)
+require(urca)
+unt_test=ur.kpss(daily_elec$residuals2) 
+summary(unt_test) 
+```
+
+## Residuals
+
+Let's look at residuals so we may still advance the stationary state.
+
+```{r, include=TRUE, echo=FALSE}
+daily_elec[,residuallag:=shift(residuals2,7)]
+daily_elec[,resdif:=residuals2-residuallag]
+require(urca)
+unt_test=ur.kpss(daily_elec$resdif) 
+summary(unt_test) # now better
+plot(daily_elec$resdif)
+
+```
+
+The current image is better than the images we looked at before. We can proceed to ARIMA and Forecast sections.
+
+
+## Forecast
+
+Before guessing, we should look at ARIMA models in order to decide what kind of prediction I will create for ARIMA over the last picture we created.
+
+```{r, include=TRUE, echo=FALSE}
+arima_fitted=auto.arima(daily_elec$resdif,seasonal=F,trace=T)
+
+```
+
+ARIMA (2,0,2) model gives appropriate values and was chosen for use.
+
+
+```{r, include=TRUE, echo=FALSE}
+nahead=48
+forecasted=forecast(arima_fitted,h=15)
+forecasted
+```
+
+Since it was 15 days for us to estimate, 15 values were generated for residual difference values over the model in ARİMA.
+
+We make predictions according to our Model 2 and ARİMA results. 
+
+```{r, include=FALSE}
+latest_avail_data_date=max(daily_elec$Date)
+temp=tail(daily_elec,nahead)
+temp[,Date:=Date+15]
+temp=temp[,c('Date','mean_consumption','residuallag','residuals2','resdif'),with=F]
+
+temp[,prevday2:=shift(x=temp$mean_consumption,n=1L)]
+temp[,prevweek2:=shift(x=temp$mean_consumption,n=7L)]
+
+
+temp[,c('mean_consumption','residuallag','resdif'):=NA]
+
+```
+
+```{r, include=FALSE}
+temp_lag=rbind(daily_elec[,c('Date','mean_consumption','residuallag',
+                              'residuals2','resdif','prevday2','prevweek2'),with=F],temp)
+
+temp_lag[,residuallag:=shift(residuals2,7)]
+
+
+temp=temp_lag[Date>latest_avail_data_date]
+
+temp[,Prediction:=predict(model2,temp,type='response')]
+```
+
+```{r, include=TRUE, echo=FALSE}
+temp[,resdif:=as.numeric(forecasted$mean)]
+temp[,residuals2:=resdif+residuallag]
+
+temp[,forecasted_consumption:=Prediction+residuals2]
+
+forecast=temp[,c('Date','forecasted_consumption'), with=F]
+forecast
+```
+
+
+## Conclusion
+
+Modelimizin genel ölçmemiz gereklidir. Bunun için ilk olarak EPİAŞ tan tahmin etmemiz gereken 15 günün gerçek gönderim alarak tahmin ettiğimiz veri tablosu ile aynı formata getirmeliyiz.
+
+```{r, include=FALSE}
+test = read.csv("C:/Users/Z0047JBE/Desktop/dersler/IE360/hw4/latest.csv")
+
+```
+
+
+```{r, include=FALSE}
+
+colnames(test) = c("Date", "Hour", "Consumption")
+test = as.data.table(test[1:360, 1:3])
+test[,Date:=as.Date(Date,'%d.%m.%Y')]
+test[,Consumption:=gsub(".","",Consumption, fixed=TRUE)]
+test[,Consumption:=as.double(gsub(",",".",Consumption, fixed=TRUE))]
+
+
+```
+
+```{r, include=TRUE, echo=FALSE}
+dailytest=test[,list(mean_consumption=mean(Consumption,na.rm=T)),by=list(Date)]
+dailytest
+
+```
+
+The data table is real values, let' look at in the graph for our forecasted valueas and real values. 
+
+
+
+```{r}
+test <- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(l)
+}
+test(dailytest$mean_consumption, forecast$forecasted_consumption)
+
+```
+
+When we look at this, we can say that the values are sufficient. It is a bit difficult to decide how much is sufficient for a model or table we have created for comparison. However, it is clear that this model can of course be much better. Different variables can be used to explain and stabilize seasonality and delay can be controlled for different intervals. We also tried to fix the special dates, but the combined holidays are also highly likely to create outliers. However, we could not correct these days as there is no concrete data regarding the combined holidays. Much better predictions will emerge with extra studies on these days or on other outlier-producing days.
+
+
+
+
+
+
+
+
+
+
+
+
+
