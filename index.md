@@ -20,6 +20,6 @@
 
 ## Project
 
-[Here](files/ie360_project.html) is our project file.
+[Here](files/ie360_project.html) is my Project report with Mert Kaan.
 
-[Here](files/ie360_project.Rmd) is our Rmd file.
+[Here](files/ie360_project.Rmd) is my Project code with Mert Kaan.
