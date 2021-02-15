@@ -17,3 +17,9 @@
 [Here](files/hw4he.html) is my fourth homework.
 
 [Here](files/hw4he.Rmd) is my Rmd file.
+
+## Project
+
+[Here](files/ie360_project.html) is our project file.
+
+[Here](files/ie360_project.Rmd) is our Rmd file.
