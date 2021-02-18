@@ -1,0 +1,165 @@
+---
+title: "HW5"
+author: "Hakan Ekiz - IE360 - Fall2020"
+date: "18 Şubat 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(data.table)
+library(ggplot2)
+library(lubridate)
+library(forecast)
+library(readxl)
+library(dplyr)
+library(readr)
+library(stats)
+library(corrplot)
+```
+
+## Introduction
+
+
+In this assignment, we will examine the connection between different parameters and shopping habits. We will see this by doing the linear models step by step. When creating linear models, it is important to see the effect of the movements we make and to take the right steps. For this, we will follow 2 different paths, the first is to see how the models will be affected by adding and removing different parameters by manually creating all models. The second is to see it using the step function. After applying them, we will evaluate these 2 approaches. Finally, we will complete the assignment by conducting a hypothesis test to measure the effect of GPA.
+
+## Data and Coefficients
+
+I transferred the data from the course website to R in appropriate ways. Then I had them all plotted on a graph to see the correlation between parameters directly. This graphic will show us where to start when building a model.
+
+```{r}
+data = read_excel("C:/Users/Z0047JBE/Desktop/dersler/IE360/HW5/data.xlsx")
+data = as.data.table(data)
+
+data[,SALES:=as.integer(SALES)]
+data[,APT:=as.integer(APT)]
+data[,AGE:=as.double(AGE)]
+data[,ANX:=as.double(ANX)]
+data[,EXP:=as.integer(EXP)]
+data[,GPA:=as.double(GPA)]
+
+data
+
+
+
+```
+
+
+```{r}
+correlation = cor(data)
+corrplot(correlation, type= "lower")
+```
+
+
+## Manuel Steps
+
+In this section, we will first establish a base model and try to proceed step by step. As seen in the graph, we used this as a parameter in our first model since Age has the greatest effect. Then we created new models by adding all other parameters and we will observe the differences.
+
+
+```{r}
+
+model = lm(SALES ~ AGE, data=data)
+new1 = lm(SALES ~ AGE+APT, data=data)
+new2 = lm(SALES ~ AGE+GPA, data=data)
+new3 = lm(SALES ~ AGE+EXP, data=data)
+new4 = lm(SALES ~ AGE+ANX, data=data)
+
+anova(model,new1)
+anova(model,new2)
+anova(model,new3)
+anova(model,new4)
+
+
+```
+
+When we look at the comparison of the 4 models separately, we can see that the most suitable value for improving our model is APT. This is because APT has the lowest p-value.
+
+In our main model in this step, we used AGE and APT because of the results we found in the previous one. We created new models by adding other values to this model and we will compare them.
+
+```{r}
+
+model = lm(SALES ~ AGE+APT, data=data)
+new1 = lm(SALES ~ AGE+APT+GPA, data=data)
+new2= lm(SALES ~ AGE+APT+EXP, data=data)
+new3 = lm(SALES ~ AGE+APT+ANX, data=data)
+
+anova(model,new1)
+anova(model,new2)
+anova(model,new3)
+
+```
+
+We will not add new values to improve our model because when we examine the 3 results above, no value exceeds the significance level.
+
+Finally, we should check if we can get a better model by reducing
+
+
+```{r}
+model = lm(SALES ~ AGE+APT, data=data)
+new1 = lm(SALES ~ AGE, data=data)
+new2= lm(SALES ~ APT, data=data)
+
+anova(model,new1)
+anova(model,new2)
+
+```
+
+There is no value we have to take out of the model. The best model we found was our model with AGE and APT.
+
+```{r}
+lastmodel = lm(SALES ~ AGE+APT, data=data)
+```
+
+
+## Step Function
+
+Now we will try to do the same with the above method with a different method. In this section, we will try to make a faster and automatic version of what we actually do by using the step () function. Since the operations performed in this section are very parallel, we can expect the resulting models to be the same.
+
+```{r}
+initial=lm(SALES ~ 1, data = data)
+step(initial, scope =~ APT + AGE + ANX + EXP + GPA, direction = "both", trace = 1)
+
+```
+As we can see, the step () function has also created a model consisting of AGE and APT as the final model. While doing this, he came to this conclusion by automatically making the case of the individual trials we did above.
+
+## Comparison & Final Model
+
+We achieved the same result in this problem with both methods. The first method we do to keep everything under control and see can be more useful in terms of tutorial. However, from a practical point of view, using the step () function is a much more practical way.
+Since we were working with a relatively small data on this problem, we were able to reach the result in the 1st method without having to iterate too much. On the other hand, this method can take a lot of time when dealing with more complex and bigger problems. I think it will be more useful to use the step () function for larger and more complex problems.
+
+```{r}
+summary(lastmodel)
+```
+Residual Standar error is 3.768
+The effect of AGE is 5.7969, AGE positively affect the SALES
+The effect of APT is 0.2015, APT positively affect the SALES but not much as AGE
+Both coefficients is under the significance level of 0.0001
+
+
+## GPA Effect
+
+In this section, we will examine the effect of GPA in particular.
+
+H0 -----> GPA doesn't affect SALES (Model without GPA)
+H1 -----> gpa affect SALES(model with GPA)
+
+```{r}
+GPAModel = lm(SALES ~ AGE+APT+GPA, data=data)
+anova(lastmodel,GPAModel)
+```
+
+GPA effect is not significant and has low F value, so we fail to rehect HO.
+
+
+
+
+
+
+
+
+
+
+
