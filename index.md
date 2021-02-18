@@ -23,3 +23,9 @@
 [Here](files/ie360_project.html) is my Project report with Mert Kaan.
 
 [Here](files/ie360_project.Rmd) is my Project code with Mert Kaan.
+
+## HW5
+
+[Here](files/HW5.html) is my fifth homework.
+
+[Here](files/HW5.Rmd) is my Rmd file.
